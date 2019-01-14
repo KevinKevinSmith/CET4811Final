@@ -1,10 +1,19 @@
 /*
-Date: 10/23/2018
-As many initial functions as I can think of, done.
-
+Date: 11/13/2018
+Completed:
+	Serial Control Drafted. Only Automatic Control set. 
+	Most functions completed. Will need to create turnLeft and turnRight, it spin versions should be fine for now. 
+	Need to buy Bluetooth module and test at home with Smartphone to save time for next Draft. 
+Next to do:
+Find out maximum and minimum motor speed
+	Possibly (0-200)?
+	Current max sent to 179; search for MAX_MOTOR_SPEED
+Add control system
+	Take out Ultrasonic Drive Forward code
+	First do Serial Monitor
+	Then do Bluetooth
+Eventually add speaker
 */
-
-#include <Servo.h> 
 
 const int POTENTIOMETER = 0; //potentiometer pin number (Analog)
 const int POWER_SWITCH = 1; //power switch pin number
@@ -14,60 +23,88 @@ const int SPEAKER_PIN = 4; //speaker pin number
 const int FRONT_LEDS = 6;
 const int BACK_LEDS = 7;
 
-Servo motor1;
-Servo motor2;
-Servo motor3;
-Servo motor4;
-const Servo MOTOR_ARRAY[] ={ motor1, motor2, motor3, motor4 };
-const int MOTOR_ARRAY_LENGTH = 4;
-const int MOTOR_PIN1 = 8;
-const int MOTOR_PIN2 = 9;
-const int MOTOR_PIN3 = 10;
-const int MOTOR_PIN4 = 11;
+const int MOTOR_A = 8; //Motor chain A (left side);
+const int PWM_A = A0; //Analog speed pin for chain A
+const int MOTOR_B = 9; //Motor chain B (right side);
+const int PWM_B = A1; //Analog speed pin for chain B
 
 //const int speedFactor = 1; //multiplier for potentiometer speed
 const int MAX_MOTOR_SPEED = 179; //Servo value
 const int DISTANCE_BEFORE_STOP = 5; //inches
 
-void driveForward(Servo motorArray[], int speed);
-void driveBackwards(Servo motorArray[], int speed);
-void turnRight(Servo motorArray[], int speed);
-void turnLeft(Servo motorArray[], int speed);
-void turnOffAllMotors(Servo motorArray[], int motorArrayLength);
+void driveForward(int motorA, int motorB);
+void driveBackwards(int motorA, int motorB);
+void spinLeft(int motorA, int motorB);
+void spinRight(int motorA, int motorB);
+void setMotorSpeed(int pwmA, int pwmB, int speed);
+
 long pingUltrasonic(int trigger, int echo);
 long microsecondsToInches(long microseconds);
 int getSpeed(int potPin, int maxSpeed);
-void lightLEDs(int front, int back, long inches, int stopLength);
+
+void turnOnLEDs(int front, int back);
+void lightLEDsForward(int front, int back);
+void lightLEDsBackward(int front, int back);
+void turnOnAllLEDs(int front, int back);
+void turnOffAllLEDs(int front, int back);
 
 
 void setup() {
 	Serial.begin(9600);
-	motor1.attach(MOTOR_PIN1);
-	motor2.attach(MOTOR_PIN2);
-	motor3.attach(MOTOR_PIN3);
-	motor4.attach(MOTOR_PIN4);
 	
 	//pins set to input and output
 	
 	pinMode(TRIGGER_PIN, OUTPUT);
 	pinMode(ECHO_PIN,  INPUT);	
+	pinMode(MOTOR_A,  OUTPUT);	
+	pinMode(PWM_A,  OUTPUT);	
+	pinMode(MOTOR_B,  OUTPUT);	
+	pinMode(PWM_B,  OUTPUT);	
 }
 
 void loop() {
 	bool isOn = digitalRead(POWER_SWITCH);
-	if (!isOn) {
-	long inches;
-	// convert the time into a distance
-	inches = microsecondsToInches(pingUltrasonic(TRIGGER_PIN, ECHO_PIN));
-	Serial.println(inches);
-	lightLEDs(FRONT_LEDS, BACK_LEDS, inches, DISTANCE_BEFORE_STOP);
-	
-	int speed;
-	speed = getSpeed(POTENTIOMETER, MAX_MOTOR_SPEED);
-	driveForward(MOTOR_ARRAY,speed);
+	if (isOn) {
+		switch(Serial.read()) {	
+			case('1'): //Potentiometer driving mode
+
+			long inches;
+			// convert the time into a distance
+			inches = microsecondsToInches(pingUltrasonic(TRIGGER_PIN, ECHO_PIN));
+			Serial.print("Distance = ");
+			Serial.print(inches);
+			Serial.println("in.");
+			if (inches < DISTANCE_BEFORE_STOP) {
+				lightLEDsForward(FRONT_LEDS, BACK_LEDS);
+			}
+			else {
+				lightLEDsBackward(FRONT_LEDS, BACK_LEDS);
+			}	
+			
+			int speed;
+			speed = getSpeed(POTENTIOMETER, MAX_MOTOR_SPEED);
+			setMotorSpeed(PWM_A, PWM_B, speed);
+			driveForward(MOTOR_A, MOTOR_B);
+			Serial.print("Speed = ");
+			Serial.print(speed);
+			Serial.println(".");
+			break;
+			
+			//Manual driving mode
+			case('2'):
+			case('3'):
+			case('4'):
+			case('5'):
+			case('6'):
+			case('0'):
+			default:
+				break;
+				
+		}
 	}
 	else {
-		turnOffAllMotors(MOTOR_ARRAY, MOTOR_ARRAY_LENGTH);
+		setMotorSpeed(PWM_A, PWM_B, 0);
+		turnOffAllLEDs(FRONT_LEDS, BACK_LEDS);
 	}
 }
 /* 
@@ -81,54 +118,51 @@ int getSpeed(int potPin, int maxSpeed) {
 	return speed;
 }
 
-void turnOnFrontLEDs(int front) {
-	digitalWrite(front, HIGH);
+//for turning On and Off individual LEDs
+void turnOnLED(int LED) { 		
+	digitalWrite(LED, HIGH);
 }
-void turnOnBackLEDs(int back) {
-	digitalWrite(back, HIGH);
+void turnOffLED(int LED) {
+	digitalWrite(LED, LOW);
 }
-void turnOffFrontLEDs(int front) {
-	digitalWrite(front, LOW);
+//LED lighting configuration
+void lightLEDsForward(int front, int back) {
+	turnOnLED(front);
+	turnOffLED(back);
 }
-void turnOffBackLEDs(int back) {
-	digitalWrite(back, LOW);	
+void lightLEDsBackward(int front, int back) {
+	turnOffLED(front);
+	turnOnLED(back);
+}
+void turnOnAllLEDs(int front, int back){
+	turnOnLED(front);
+	turnOnLED(back);
+}
+void turnOffAllLEDs(int front, int back){
+	turnOffLED(front);
+	turnOffLED(back);
+}
+void driveForward(int A, int B) {
+	digitalWrite(A, HIGH);
+	digitalWrite(B, HIGH);
+}
+void setMotorSpeed(int pwmA, int pwmB, int speed) {
+	analogWrite(pwmA, speed);
+	analogWrite(pwmB, speed);
+}
+void driveBackwards(int A, int B) {
+	digitalWrite(A, LOW);
+	digitalWrite(B, LOW);
+}
+void spinLeft(int A, int B) {
+	digitalWrite(A, LOW);
+	digitalWrite(B, HIGH);
+}
+void spinRight(int A, int B){
+	digitalWrite(A, HIGH);
+	digitalWrite(B, LOW);
 }
 
-void lightLEDs(int front, int back, long inches, int stopLength) {
-	if (inches < stopLength) {
-		turnOnFrontLEDs(front);
-		turnOffBackLEDs(back);
-	}
-	else {
-		turnOffFrontLEDs(front);
-		turnOffBackLEDs(back);
-	}
-}
-void driveForward(Servo motorArray[], int speed) {
-	motorArray[0].write(speed);
-	motorArray[1].write(speed);
-	motorArray[2].write(0);
-	motorArray[3].write(0);
-}
-void turnOffAllMotors(Servo motorArray[], int motorArrayLength) {
-	for(int i = 0; i < motorArrayLength; i++) {
-		motorArray[i].write(0);
-	}
-}
-
-void driveBackwards(Servo motorArray[], int speed){
-	motorArray[0].write(0);
-	motorArray[1].write(0);
-	motorArray[2].write(speed);
-	motorArray[3].write(speed);	
-}
-
-void turnRight(Servo motorArray[], int speed){
-	
-}
-void turnLeft(Servo motorArray[], int speed){
-	
-}
 
 
 long pingUltrasonic(int trigger, int echo){
@@ -156,4 +190,3 @@ long microsecondsToInches(long microseconds)
 
   return microseconds / 74 / 2;
 }
-
