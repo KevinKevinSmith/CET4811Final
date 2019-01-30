@@ -1,36 +1,22 @@
 /*
-Changes:  
-  Got rid of array parameter warning by changing arrays from const int to int.
-  Added debug code thanks to Mike.
-  Changed case statements to if-else statements
-  Fixed pins for motors so that it wouldn't spin when going forward
-  Swapped LED pins for physical reasons
-  Speaker works
-  Adjusted spin commands in loop to stop, because car is too damn fast
-  Adjusted DISTANCE_BEFORE_STOP to 12 inches, because car is too damn fast
-  
-Next to do:
-	One day, change speaker to analog or PWM to control pitch.
-  Bluetooth app could be swapped; Function button works like a hold shift key.
-
+CET 4811 Fall 2018 Final Project
+Written by Kevin Smith, with Nick James and Michael Manifold
+Arduino Car using an Ultrasonic Sensor, LEDs, two motor trains, and a speaker
 */
 
-const int POTENTIOMETER = A0; //potentiometer pin number (Analog)
-//const int POWER_SWITCH = 1; //power switch pin number
-const int TRIGGER_PIN = 2; //trigger pin for Ultrasonic Sensor
-const int ECHO_PIN = 3; //trigger pin for Ultrasonic Sensor
-const int SPEAKER_PIN = 4; //speaker pin number
-const int FRONT_LEDS = 12;
-const int BACK_LEDS = 11;
+const int TRIGGER_PIN = 2; //Ultrasonic Sensor
+const int ECHO_PIN = 3; //Ultrasonic Sensor
+const int SPEAKER_PIN = 4; //speaker
+const int FRONT_LEDS = 12; //front facing LEDs
+const int BACK_LEDS = 11; //back facing LEDs
 
 const int MOTOR_APOS = 9; //Motor chain A Positive power direction (right side);
 const int MOTOR_ANEG = 8; //Motor chain A Negative power direction (right side);
- int MOTOR_A[2] = {MOTOR_APOS, MOTOR_ANEG};
-//const int PWM_A = A2; //Analog speed pin for chain A
+int MOTOR_A[2] = {MOTOR_APOS, MOTOR_ANEG}; //Motor chain A array
 const int MOTOR_BPOS = 7; //Motor chain B Positive power direction (left side);
 const int MOTOR_BNEG = 6; //Motor chain B Negative power direction (left side);
- int MOTOR_B[2] = {MOTOR_BPOS, MOTOR_BNEG};
-//const int PWM_B = A3; //Analog speed pin for chain B
+int MOTOR_B[2] = {MOTOR_BPOS, MOTOR_BNEG}; //Motor chain B array
+
 
 const int DISTANCE_BEFORE_STOP = 12; //inches
 
@@ -47,14 +33,14 @@ long pingUltrasonic(int trigger, int echo);
 long microsecondsToInches(long microseconds);
 int getSpeed(int potPin, int maxSpeed);
 
-int getBrightness(int potPin);
-void turnOnLED(int LED, int brightness);
+void turnOnLED(int LED);
 void turnOffLED(int LED);
-void lightLEDsForward(int front, int back, int brightness);
-void lightLEDsBackward(int front, int back, int brightness);
-void turnOnAllLEDs(int front, int back, int brightness);
+void lightLEDsForward(int front, int back);
+void lightLEDsBackward(int front, int back);
+void turnOnAllLEDs(int front, int back);
 void turnOffAllLEDs(int front, int back);
 
+void honk(int speaker);
 /* 
 --------- Setup Pin Modes ----------
 */
@@ -62,7 +48,6 @@ void setup() {
   Serial.begin(9600);
   
   //pins set to input and output
-  pinMode(POTENTIOMETER, INPUT);
   pinMode(SPEAKER_PIN, OUTPUT);
   pinMode(FRONT_LEDS, OUTPUT);
   pinMode(BACK_LEDS, OUTPUT);
@@ -70,20 +55,14 @@ void setup() {
   pinMode(ECHO_PIN,  INPUT);  
   pinMode(MOTOR_APOS,  OUTPUT); 
   pinMode(MOTOR_ANEG,  OUTPUT); 
-  //pinMode(PWM_A,  OUTPUT);  
   pinMode(MOTOR_BPOS,  OUTPUT); 
   pinMode(MOTOR_BNEG,  OUTPUT); 
-  //pinMode(PWM_B,  OUTPUT);  
 }
 
 /* 
 --------- Main Loop ----------
 */
 void loop() {
-	int brightness = analogRead(POTENTIOMETER);
-	if(!brightness) { //if no potentiometer is read, assume it's not connected
-		brightness = 256;
-	}
  bool ultrasonicMode = false;
  int input;
  if (Serial.available() > 0) {
@@ -91,7 +70,6 @@ void loop() {
     Serial.println(input);
     delay(2);
   }
-
  
  if(input == 'S' ) {
     //Stop the car
@@ -102,19 +80,19 @@ void loop() {
  else if (input == 'F') {
     //Drive Forward
     driveForward(MOTOR_A, MOTOR_B);
-    lightLEDsForward(FRONT_LEDS, BACK_LEDS, brightness);
+    lightLEDsForward(FRONT_LEDS, BACK_LEDS);
     Serial.println("Forward");
  }
  else if (input == 'B') {
     //Drive Backwards
     driveBackwards(MOTOR_A, MOTOR_B);
-    lightLEDsBackward(FRONT_LEDS, BACK_LEDS, brightness);
+    lightLEDsBackward(FRONT_LEDS, BACK_LEDS);
     Serial.println("Backward");
  }
  else if (input == 'G') {
     //Spin Forward Left
     spinForwardLeft(MOTOR_A, MOTOR_B);
-    lightLEDsForward(FRONT_LEDS, BACK_LEDS, brightness);
+    lightLEDsForward(FRONT_LEDS, BACK_LEDS);
     Serial.println("Spin Left");
     delay(100);
     turnOffAllLEDs(FRONT_LEDS, BACK_LEDS);
@@ -123,7 +101,7 @@ void loop() {
  else if (input == 'I') {
     //Spin Forward Right
     spinForwardRight(MOTOR_A, MOTOR_B);
-    lightLEDsForward(FRONT_LEDS, BACK_LEDS, brightness);
+    lightLEDsForward(FRONT_LEDS, BACK_LEDS);
     Serial.println("Spin Right");
     delay(100);
     turnOffAllLEDs(FRONT_LEDS, BACK_LEDS);
@@ -132,7 +110,7 @@ void loop() {
  else if (input == 'H') {
     //Spin Backward Left
     spinBackwardLeft(MOTOR_A, MOTOR_B);
-    lightLEDsBackward(FRONT_LEDS, BACK_LEDS, brightness);
+    lightLEDsBackward(FRONT_LEDS, BACK_LEDS);
     Serial.println("Spin Back Left");
     delay(100);
     turnOffAllLEDs(FRONT_LEDS, BACK_LEDS);
@@ -141,7 +119,7 @@ void loop() {
  else if (input == 'J') {
     //Spin Backward Right
     spinBackwardRight(MOTOR_A, MOTOR_B);
-    lightLEDsBackward(FRONT_LEDS, BACK_LEDS, brightness);
+    lightLEDsBackward(FRONT_LEDS, BACK_LEDS);
     Serial.println("Spin Back Right");
     delay(100);
     turnOffAllLEDs(FRONT_LEDS, BACK_LEDS);
@@ -165,7 +143,7 @@ void loop() {
       if (state == 'S') {
         ultrasonicMode = false;
         turnOffAllMotors(MOTOR_A, MOTOR_B);
-        lightLEDsBackward(FRONT_LEDS, BACK_LEDS, brightness);
+        lightLEDsBackward(FRONT_LEDS, BACK_LEDS);
         Serial.println("Stopping Ultrasonic Mode");
         break;
       }
@@ -179,10 +157,10 @@ void loop() {
       Serial.print(inches);
       Serial.println("in.");
       if (inches < DISTANCE_BEFORE_STOP) {
-        lightLEDsForward(FRONT_LEDS, BACK_LEDS, brightness);
+        lightLEDsForward(FRONT_LEDS, BACK_LEDS);
       }
       else {
-        lightLEDsBackward(FRONT_LEDS, BACK_LEDS, brightness);
+        lightLEDsBackward(FRONT_LEDS, BACK_LEDS);
       } 
       if (inches < DISTANCE_BEFORE_STOP) {
         turnOffAllMotors(MOTOR_A, MOTOR_B);
@@ -197,15 +175,6 @@ void loop() {
 /* 
 --------- Function Definitions ----------
 */
-
-
-int getSpeed(int potPin, int maxSpeed) {
-  int speed;
-  speed = analogRead(potPin); //* speedFactor; 
-  speed = map(speed, 0, 1023, 0, maxSpeed);
-  return speed;
-}
-
 void honk(int speaker) {
 	digitalWrite(speaker, HIGH);
 	delay(1000);
@@ -213,25 +182,25 @@ void honk(int speaker) {
 }
 
 //for turning On and Off individual LEDs
-void turnOnLED(int LED, int brightness) {     
-  digitalWrite(LED, brightness);
+void turnOnLED(int LED) {     
+  digitalWrite(LED, HIGH);
 }
 void turnOffLED(int LED) {
   digitalWrite(LED, LOW);
 }
 
 //LED lighting configuration
-void lightLEDsForward(int front, int back, int brightness) {
-  turnOnLED(front, brightness);
+void lightLEDsForward(int front, int back) {
+  turnOnLED(front);
   turnOffLED(back);
 }
-void lightLEDsBackward(int front, int back, int brightness) {
+void lightLEDsBackward(int front, int back) {
   turnOffLED(front);
-  turnOnLED(back, brightness);
+  turnOnLED(back);
 }
-void turnOnAllLEDs(int front, int back, int brightness){
-  turnOnLED(front, brightness);
-  turnOnLED(back, brightness);
+void turnOnAllLEDs(int front, int back){
+  turnOnLED(front);
+  turnOnLED(back);
 }
 void turnOffAllLEDs(int front, int back){
   turnOffLED(front);
@@ -310,4 +279,4 @@ long microsecondsToInches(long microseconds)
   // and return, so we divide by 2 to get the distance of the obstacle.
 
   return microseconds / 74 / 2;
-}
+}
