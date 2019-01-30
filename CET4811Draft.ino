@@ -1,14 +1,17 @@
 /*
-Date: 12/13/2018 
-Changes:
-  Changed pins around
-  Took out motor speed stuff
-  Commented out Power Switch
-  Added more Bluetooth controls along with Speaker
-  Tied Potentiometer to LEDs (Now we can have flood lights)  
+Changes:  
+  Got rid of array parameter warning by changing arrays from const int to int.
+  Added debug code thanks to Mike.
+  Changed case statements to if-else statements
+  Fixed pins for motors so that it wouldn't spin when going forward
+  Swapped LED pins for physical reasons
+  Speaker works
+  Adjusted spin commands in loop to stop, because car is too damn fast
+  Adjusted DISTANCE_BEFORE_STOP to 12 inches, because car is too damn fast
+  
 Next to do:
-	Reuse getSpeed for Potentiometer to LEDs later.
-	Check if Speaker needs to be an analog pin (pin A1 reserved just in case)
+	One day, change speaker to analog or PWM to control pitch.
+  Bluetooth app could be swapped; Function button works like a hold shift key.
 
 */
 
@@ -17,19 +20,19 @@ const int POTENTIOMETER = A0; //potentiometer pin number (Analog)
 const int TRIGGER_PIN = 2; //trigger pin for Ultrasonic Sensor
 const int ECHO_PIN = 3; //trigger pin for Ultrasonic Sensor
 const int SPEAKER_PIN = 4; //speaker pin number
-const int FRONT_LEDS = 11;
-const int BACK_LEDS = 12;
+const int FRONT_LEDS = 12;
+const int BACK_LEDS = 11;
 
 const int MOTOR_APOS = 9; //Motor chain A Positive power direction (right side);
 const int MOTOR_ANEG = 8; //Motor chain A Negative power direction (right side);
-const int MOTOR_A[2] = {MOTOR_APOS, MOTOR_ANEG};
+ int MOTOR_A[2] = {MOTOR_APOS, MOTOR_ANEG};
 //const int PWM_A = A2; //Analog speed pin for chain A
-const int MOTOR_BPOS = 6; //Motor chain B Positive power direction (left side);
-const int MOTOR_BNEG = 7; //Motor chain B Negative power direction (left side);
-const int MOTOR_B[2] = {MOTOR_BPOS, MOTOR_BNEG};
+const int MOTOR_BPOS = 7; //Motor chain B Positive power direction (left side);
+const int MOTOR_BNEG = 6; //Motor chain B Negative power direction (left side);
+ int MOTOR_B[2] = {MOTOR_BPOS, MOTOR_BNEG};
 //const int PWM_B = A3; //Analog speed pin for chain B
 
-const int DISTANCE_BEFORE_STOP = 5; //inches
+const int DISTANCE_BEFORE_STOP = 12; //inches
 
 void driveForward(int motorChainA[], int motorChainB[]);
 void driveBackwards(int motorChainA[], int motorChainB[]);
@@ -81,48 +84,92 @@ void loop() {
 	if(!brightness) { //if no potentiometer is read, assume it's not connected
 		brightness = 256;
 	}
-  switch(Serial.read()) { 
-    case('1'): //Stop the car
-    	turnOffAllLEDs(FRONT_LEDS, BACK_LEDS);
-      turnOffAllMotors(MOTOR_A, MOTOR_B);
-      //delayMicroseconds(1000);
-      break;
-    //Manual driving mode
-    case('2'): //Drive Forward
-    	driveForward(MOTOR_A, MOTOR_B);
-    	lightLEDsForward(FRONT_LEDS, BACK_LEDS, brightness);
-      //delayMicroseconds(1000);
-      break;
-    case('3'): //Drive Backwards
-    	driveBackwards(MOTOR_A, MOTOR_B);
-    	lightLEDsBackward(FRONT_LEDS, BACK_LEDS, brightness);
-      //delayMicroseconds(1000);
-      break;
-    case('4'): //Spin Forward Left
-    	spinForwardLeft(MOTOR_A, MOTOR_B);
-    	lightLEDsForward(FRONT_LEDS, BACK_LEDS, brightness);
-      //delayMicroseconds(1000);
-      break;
-    case('5'): //Spin Forward Right
-    	spinForwardRight(MOTOR_A, MOTOR_B);
-    	lightLEDsForward(FRONT_LEDS, BACK_LEDS, brightness);
-      //delayMicroseconds(1000);
-      break;
-    case('6'): //Spin Backward Left
-    	spinBackwardLeft(MOTOR_A, MOTOR_B);
-    	lightLEDsBackward(FRONT_LEDS, BACK_LEDS, brightness);
-      //delayMicroseconds(1000);
-      break;
-    case('7'): //Spin Backward Right
-	 		spinBackwardRight(MOTOR_A, MOTOR_B);
-    	lightLEDsBackward(FRONT_LEDS, BACK_LEDS, brightness);
-      //delayMicroseconds(1000);
-    	break;
-		case('7'): //Honk Horn
-			honk(SPEAKER_PIN);
-			break;
-    case('0'): 
-    default: //Potentiometer driving mode
+ bool ultrasonicMode = false;
+ int input;
+ if (Serial.available() > 0) {
+    input = Serial.read();
+    Serial.println(input);
+    delay(2);
+  }
+
+ 
+ if(input == 'S' ) {
+    //Stop the car
+    turnOffAllLEDs(FRONT_LEDS, BACK_LEDS);
+    turnOffAllMotors(MOTOR_A, MOTOR_B);
+    Serial.println("Stop");
+ }
+ else if (input == 'F') {
+    //Drive Forward
+    driveForward(MOTOR_A, MOTOR_B);
+    lightLEDsForward(FRONT_LEDS, BACK_LEDS, brightness);
+    Serial.println("Forward");
+ }
+ else if (input == 'B') {
+    //Drive Backwards
+    driveBackwards(MOTOR_A, MOTOR_B);
+    lightLEDsBackward(FRONT_LEDS, BACK_LEDS, brightness);
+    Serial.println("Backward");
+ }
+ else if (input == 'G') {
+    //Spin Forward Left
+    spinForwardLeft(MOTOR_A, MOTOR_B);
+    lightLEDsForward(FRONT_LEDS, BACK_LEDS, brightness);
+    Serial.println("Spin Left");
+    delay(100);
+    turnOffAllLEDs(FRONT_LEDS, BACK_LEDS);
+    turnOffAllMotors(MOTOR_A, MOTOR_B);
+ }
+ else if (input == 'I') {
+    //Spin Forward Right
+    spinForwardRight(MOTOR_A, MOTOR_B);
+    lightLEDsForward(FRONT_LEDS, BACK_LEDS, brightness);
+    Serial.println("Spin Right");
+    delay(100);
+    turnOffAllLEDs(FRONT_LEDS, BACK_LEDS);
+    turnOffAllMotors(MOTOR_A, MOTOR_B);
+ }
+ else if (input == 'H') {
+    //Spin Backward Left
+    spinBackwardLeft(MOTOR_A, MOTOR_B);
+    lightLEDsBackward(FRONT_LEDS, BACK_LEDS, brightness);
+    Serial.println("Spin Back Left");
+    delay(100);
+    turnOffAllLEDs(FRONT_LEDS, BACK_LEDS);
+    turnOffAllMotors(MOTOR_A, MOTOR_B);
+ }
+ else if (input == 'J') {
+    //Spin Backward Right
+    spinBackwardRight(MOTOR_A, MOTOR_B);
+    lightLEDsBackward(FRONT_LEDS, BACK_LEDS, brightness);
+    Serial.println("Spin Back Right");
+    delay(100);
+    turnOffAllLEDs(FRONT_LEDS, BACK_LEDS);
+    turnOffAllMotors(MOTOR_A, MOTOR_B);
+ }
+ else if (input == 'V') {
+    //Honk Horn
+    honk(SPEAKER_PIN);
+    Serial.println("Honk");
+ }
+ else if (input == 'X') {
+    ultrasonicMode = true;
+    Serial.println("Starting Ultrasonic Mode");
+    while(ultrasonicMode) {
+      char state;
+      if (Serial.available() > 0) {
+        state = Serial.read();
+        Serial.println(state);
+        delay(2);
+      } 
+      if (state == 'S') {
+        ultrasonicMode = false;
+        turnOffAllMotors(MOTOR_A, MOTOR_B);
+        lightLEDsBackward(FRONT_LEDS, BACK_LEDS, brightness);
+        Serial.println("Stopping Ultrasonic Mode");
+        break;
+      }
+      //Ultrasonic Sensor driving mode
       int duration = pingUltrasonic(TRIGGER_PIN, ECHO_PIN);
       long inches;
       // convert the time into a distance
@@ -137,16 +184,14 @@ void loop() {
       else {
         lightLEDsBackward(FRONT_LEDS, BACK_LEDS, brightness);
       } 
-
       if (inches < DISTANCE_BEFORE_STOP) {
         turnOffAllMotors(MOTOR_A, MOTOR_B);
       }
       else {
         driveForward(MOTOR_A, MOTOR_B);
       }
-      delay(500);
-      break;   
-  } //end switch statement  
+    } //end ultrasonic while loop
+  } //end if statment
 } //end loop
 
 /* 
